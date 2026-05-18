@@ -1,14 +1,19 @@
 package com.app.forgefocus.features.mountains.presentation.viewmodel
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.forgefocus.core.domain.model.Goal
 import com.app.forgefocus.core.domain.model.PeriodFilter
+import com.app.forgefocus.core.domain.model.ProgressLog
 import com.app.forgefocus.core.domain.usecase.BreakMountainBlockUseCase
 import com.app.forgefocus.core.domain.usecase.CreateGoalUseCase
 import com.app.forgefocus.core.domain.usecase.DeleteGoalUseCase
 import com.app.forgefocus.core.domain.usecase.GetGoalsUseCase
+import com.app.forgefocus.core.domain.usecase.GetProgressLogsUseCase
 import com.app.forgefocus.features.mountains.domain.GetDashboardDataUseCase
+import com.app.forgefocus.features.mountains.presentation.util.DashboardDateTimeHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,21 +35,62 @@ class DashboardViewModel @Inject constructor(
     private val createGoalUseCase: CreateGoalUseCase,
     private val breakMountainBlockUseCase: BreakMountainBlockUseCase,
     private val deleteGoalUseCase: DeleteGoalUseCase,
+    private val getProgressLogsUseCase: GetProgressLogsUseCase,
     private val getDashboardDataUseCase: GetDashboardDataUseCase
 ) : ViewModel() {
 
     private val _selectedPeriod = MutableStateFlow(PeriodFilter.DAILY)
     val selectedPeriod = _selectedPeriod.asStateFlow()
 
+    private val _timeOffset = MutableStateFlow(0)
+    val timeOffset = _timeOffset.asStateFlow()
+
     private val _event = MutableSharedFlow<MountainsEvent>()
     val event = _event.asSharedFlow()
 
 
-    val uiState: StateFlow<DashboardUiState> = _selectedPeriod.flatMapLatest { period ->
+    @RequiresApi(Build.VERSION_CODES.O)
+    val uiState: StateFlow<DashboardUiState> = combine(
+        _selectedPeriod,
+        _timeOffset
+    ) { period, offset ->
+        Pair(period, offset)
+    }.flatMapLatest { (period, offset) ->
+        val timeWindow = DashboardDateTimeHelper.calculateTimeWindow(period, offset)
+
         combine(
-            getGoalsUseCase()
-        ) { (goals) ->
-            getDashboardDataUseCase(goals, period)
+            getGoalsUseCase(),
+            getProgressLogsUseCase(0L, timeWindow.second)
+        ) { goals, entityLogs ->
+
+            val domainLogs = entityLogs.map { entity ->
+                ProgressLog(
+                    id = entity.id,
+                    goalId = entity.goalId,
+                    timestamp = entity.timestamp,
+                    blocksCompleted = entity.blocksCompleted
+                )
+            }
+
+            val (goalProgressList, stats) = getDashboardDataUseCase(
+                goals = goals,
+                logs = domainLogs,
+                period = period,
+                timeOffset = offset,
+                startTimeWindow = timeWindow.first,
+                endTimeWindow = timeWindow.second
+            )
+
+            val periodLabel = DashboardDateTimeHelper.generatePeriodLabel(period, timeWindow.first, offset)
+
+            DashboardUiState(
+                goals = goalProgressList,
+                selectedPeriod = period,
+                timeOffset = offset,
+                periodLabel = periodLabel,
+                stats = stats,
+                isLoading = false
+            )
         }
     }.stateIn(
         scope = viewModelScope,
@@ -89,6 +135,17 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun changePeriod(period: PeriodFilter) {
+        _timeOffset.value = 0
         _selectedPeriod.value = period
+    }
+
+    fun navigatePrevious() {
+        _timeOffset.value -= 1
+    }
+
+    fun navigateNext() {
+        if (_timeOffset.value < 0) {
+            _timeOffset.value += 1
+        }
     }
 }

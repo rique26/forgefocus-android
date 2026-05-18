@@ -7,6 +7,8 @@ import com.app.forgefocus.core.domain.model.PeriodFilter
 data class DashboardUiState(
     val goals: List<GoalProgress> = emptyList(),
     val selectedPeriod: PeriodFilter = PeriodFilter.DAILY,
+    val timeOffset: Int = 0,
+    val periodLabel: String = PeriodFilter.DAILY.toString(),
     val stats: MountainStats = MountainStats(),
     val isLoading: Boolean = false
 )

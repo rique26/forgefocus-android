@@ -69,4 +69,8 @@ class GoalRepositoryImpl @Inject constructor(
             entities.map { it.toDomain() }
         }
     }
+
+    override fun getLogsByPeriod(start: Long, end: Long): Flow<List<ProgressLogEntity>> {
+        return progressLogDao.getLogsByPeriod(start, end)
+    }
 }

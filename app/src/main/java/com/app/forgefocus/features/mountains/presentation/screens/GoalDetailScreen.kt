@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -18,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.app.forgefocus.core.domain.model.PeriodFilter
 import com.app.forgefocus.features.mountains.presentation.components.DailyProgressBlocks
+import com.app.forgefocus.features.mountains.presentation.components.FilterButtons
 import com.app.forgefocus.features.mountains.presentation.components.MountainCanvas
 import com.app.forgefocus.features.mountains.presentation.viewmodel.DashboardViewModel
 
@@ -32,10 +36,17 @@ fun GoalDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     val goalProgress = uiState.goals.firstOrNull { it.goal.id == goalId }
-    val goal = goalProgress?.goal
+    // Usamos o goal vindo diretamente do mapeamento de progresso recalculado pelo UseCase
+    val historicalGoal = goalProgress?.goal
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    if (goalProgress == null || goal == null) {
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.changePeriod(PeriodFilter.DAILY)
+        }
+    }
+
+    if (goalProgress == null || historicalGoal == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color(0xFF667eea))
         }
@@ -45,7 +56,7 @@ fun GoalDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(goal.title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF111827)) },
+                title = { Text(historicalGoal.title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF111827)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Filled.Close, "Voltar", tint = Color(0xFF111827))
@@ -69,6 +80,55 @@ fun GoalDetailScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
 
+            // SELETORES DE PERÍODO (Dia, Semana, Mês, Ano)
+            FilterButtons(
+                selectedFilter = uiState.selectedPeriod,
+                onFilterChange = { viewModel.changePeriod(it) }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // NAVEGADOR DE CALENDÁRIO RETROATIVO
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF3F4F6), shape = RoundedCornerShape(12.dp))
+                    .padding(vertical = 4.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.navigatePrevious() }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Período Anterior",
+                        tint = Color(0xFF4F46E5),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Text(
+                    text = uiState.periodLabel, // Exibe dinamicamente "Hoje", "Ontem", etc.
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF111827)
+                )
+
+                IconButton(
+                    onClick = { viewModel.navigateNext() },
+                    enabled = uiState.timeOffset < 0 // Desabilita se já estiver no tempo presente
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Próximo Período",
+                        tint = if (uiState.timeOffset < 0) Color(0xFF4F46E5) else Color(0xFF9CA3AF),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // CANVAS DA MONTANHA (Muda dinamicamente conforme os blocos do histórico)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -76,11 +136,12 @@ fun GoalDetailScreen(
                     .background(Color(0xFFF9FAFB), shape = RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
-                MountainCanvas(goal = goal)
+                MountainCanvas(goal = historicalGoal)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // CABEÇALHO DE STATUS E PORCENTAGEM
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -111,9 +172,9 @@ fun GoalDetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SOLID PROGRESS BAR
+            // SOLID PROGRESS BAR (Barra dinâmica baseada no dia visualizado)
             LinearProgressIndicator(
-                progress = { (goal.progress.toFloat() / goal.totalTarget).coerceIn(0f, 1f) },
+                progress = { (historicalGoal.progress.toFloat() / historicalGoal.totalTarget).coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -123,12 +184,13 @@ fun GoalDetailScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            // METRICAS DOS BLOCOS MINERADOS
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "${goal.progress} de ${goal.totalTarget} blocos minerados",
+                    text = "${historicalGoal.progress} de ${historicalGoal.totalTarget} blocos minerados",
                     fontSize = 13.sp,
                     color = Color(0xFF6B7280),
                     fontWeight = FontWeight.Medium
@@ -144,27 +206,40 @@ fun GoalDetailScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // DAILY PROGRESS SECTION
-            DailyProgressBlocks(goal = goal, completedToday = goal.dayProgress)
+            // COMPONENTE DE BLOCOS DIÁRIOS (Sempre ativo no modo diário para renderizar o histórico do passado)
+            if (uiState.selectedPeriod == PeriodFilter.DAILY) {
+                DailyProgressBlocks(goal = historicalGoal, completedToday = historicalGoal.dayProgress)
+                Spacer(modifier = Modifier.height(40.dp))
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-            Spacer(modifier = Modifier.height(40.dp))
-
-            // ⛏️ PRIMARY ACTION BUTTON
+            // PRIMARY ACTION BUTTON (Registrar ou travado em modo histórico)
             Button(
-                onClick = { viewModel.breakMountainBlock(goal.id) },
+                onClick = { viewModel.breakMountainBlock(historicalGoal.id) },
+                enabled = uiState.timeOffset == 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF111827)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF111827),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color(0xFFE5E7EB),
+                    disabledContentColor = Color(0xFF9CA3AF)
+                ),
                 shape = RoundedCornerShape(16.dp),
                 elevation = ButtonDefaults.buttonElevation(0.dp)
             ) {
-                Text("⛏️ Registrar Bloco (30 min)", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                Text(
+                    text = if (uiState.timeOffset == 0) "⛏️ Registrar Bloco (30 min)" else "Visualizando Histórico",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         }
     }
 
-    // CONFIRMATION DIALOG
+    // CONFIRMATION DIALOG (Deletar Meta)
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -173,7 +248,7 @@ fun GoalDetailScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteGoal(goal)
+                        viewModel.deleteGoal(historicalGoal)
                         showDeleteDialog = false
                         onBackClick()
                     },

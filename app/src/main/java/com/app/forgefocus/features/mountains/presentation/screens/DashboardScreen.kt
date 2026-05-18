@@ -113,6 +113,13 @@ fun DashboardScreenContent(
             if (uiState.goals.isEmpty()) {
                 EmptyStateContent()
             } else {
+                // Separando as metas em andamento das concluídas
+                val (inProgress, completed) = remember(uiState.goals) {
+                    uiState.goals.partition { it.goal.progress < it.goal.totalTarget }
+                }
+
+                var isCompletedExpanded by remember { mutableStateOf(false) }
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -120,17 +127,64 @@ fun DashboardScreenContent(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
                 ) {
-                    items(
-                        items = uiState.goals,
-                        key = { it.goal.id }
-                    ) { goalProgress ->
-                        GoalCard(
-                            goal = goalProgress.goal,
-                            progress = goalProgress.progress,
-                            onBreakClick = { onBreakMountainBlock(goalProgress.goal.id) },
-                            onDeleteClick = { onDeleteGoal(goalProgress.goal) },
-                            onCardClick = { onNavigateToDetail(goalProgress.goal.id) }
-                        )
+
+                    if (inProgress.isNotEmpty()) {
+                        items(
+                            items = inProgress,
+                            key = { it.goal.id }
+                        ) { goalProgress ->
+                            GoalCard(
+                                goal = goalProgress.goal,
+                                progress = goalProgress.progress,
+                                onBreakClick = { onBreakMountainBlock(goalProgress.goal.id) },
+                                onDeleteClick = { onDeleteGoal(goalProgress.goal) },
+                                onCardClick = { onNavigateToDetail(goalProgress.goal.id) }
+                            )
+                        }
+                    } else if (completed.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Todas as metas foram montadas! 🏔️🎉",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        }
+                    }
+
+                    if (completed.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = Color(0xFFE5E7EB))
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            TextButton(
+                                onClick = { isCompletedExpanded = !isCompletedExpanded },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                val arrow = if (isCompletedExpanded) "▼" else "►"
+                                Text(
+                                    text = "$arrow Concluídas (${completed.size})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color(0xFF4B5563)
+                                )
+                            }
+                        }
+
+                        if (isCompletedExpanded) {
+                            items(
+                                items = completed,
+                                key = { "completed_${it.goal.id}" }
+                            ) { goalProgress ->
+                                GoalCard(
+                                    goal = goalProgress.goal,
+                                    progress = goalProgress.progress,
+                                    onBreakClick = { /* Disabled for completed goals */ },
+                                    onDeleteClick = { onDeleteGoal(goalProgress.goal) },
+                                    onCardClick = { onNavigateToDetail(goalProgress.goal.id) }
+                                )
+                            }
+                        }
                     }
                 }
             }

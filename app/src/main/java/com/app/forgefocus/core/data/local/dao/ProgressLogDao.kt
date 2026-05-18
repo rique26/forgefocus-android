@@ -36,4 +36,7 @@ interface ProgressLogDao {
     """
     )
     fun getLogsFromTime(startTime: Instant): Flow<List<ProgressLogEntity>>
+
+    @Query("SELECT * FROM progress_logs WHERE timestamp BETWEEN :start AND :end")
+    fun getLogsByPeriod(start: Long, end: Long): Flow<List<ProgressLogEntity>>
 }
