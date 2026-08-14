@@ -31,12 +31,12 @@ jobs:
       - name: Permissão Gradle
         run: chmod +x gradlew
 
-      # Compila o framework Kotlin para o iOS Simulator
+      # Compila o Kotlin para os simuladores iOS
       - name: Build Kotlin iOS Framework
         run: |
           ./gradlew :shared:compileKotlinIosX64 :shared:compileKotlinIosSimulatorArm64
 
-      # Compila o .app do iOS
+      # Compila o aplicativo iOS para o Simulator
       - name: Build .app para Simulator
         run: |
           xcodebuild \
@@ -49,58 +49,100 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             build
 
-      # Instalação recomendada e oficial do CLI do Maestro
+      # Instala o Maestro CLI diretamente no runner
       - name: Setup Maestro CLI
-        uses: mobile-dev-inc/action-maestro-cli@v1.1.0
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      - name: Verificar Maestro
+        run: |
+          maestro --version
+
+      # Inicia o Simulator e instala o aplicativo
       - name: Iniciar Simulator e Instalar App
         run: |
           UDID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
-          echo "UDID=$UDID" >> $GITHUB_ENV
+
+          if [ -z "$UDID" ]; then
+            echo "Nenhum iPhone 16 Simulator encontrado."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
           echo "Usando Simulator: $UDID"
 
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
           APP_PATH=$(find build/ios -name "*.app" -not -path "*/Intermediates*" | head -1)
-          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+
+          if [ -z "$APP_PATH" ]; then
+            echo "Nenhum arquivo .app encontrado."
+            find build/ios -type d -name "*.app"
+            exit 1
+          fi
+
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "Instalando: $APP_PATH"
 
           xcrun simctl install "$UDID" "$APP_PATH"
 
+      # Cria o Flow do Maestro
       - name: Criar Flow do Maestro
         run: |
           mkdir -p .maestro
+
           cat > .maestro/screenshots.yaml << 'EOF'
-          # ATENÇÃO: Ajuste este ID se o seu Bundle ID no Xcode for diferente
           appId: com.app.forgefocus
           ---
           - launchApp
           - takeScreenshot: screenshot_1_home
+
           - swipe:
               start: 90%, 50%
               end: 10%, 50%
+
           - takeScreenshot: screenshot_2_swipe
+
           - tapOn:
               point: 50%, 50%
+
           - takeScreenshot: screenshot_3_detail
+
           - swipe:
               start: 50%, 70%
               end: 50%, 30%
+
           - takeScreenshot: screenshot_4_scroll
           EOF
 
+      # Executa o Flow
       - name: Rodar Flow do Maestro
         run: |
           maestro test .maestro/screenshots.yaml
 
+      # Copia os screenshots para o workspace
       - name: Copiar Screenshots pro Workspace
         run: |
-          find ~/.maestro/tests -name "*.png" -exec cp {} . \; 2>/dev/null || find . -name "*.png" -exec cp {} . \;
-          ls -la *.png
+          mkdir -p screenshots
 
+          find ~/.maestro/tests -name "*.png" \
+            -exec cp {} screenshots/ \; 2>/dev/null || true
+
+          find . -maxdepth 3 -name "*.png" \
+            -not -path "./screenshots/*" \
+            -exec cp {} screenshots/ \; 2>/dev/null || true
+
+          echo "Screenshots encontrados:"
+          ls -la screenshots/
+
+      # Salva os screenshots como Artifact
       - name: Salvar Screenshots como Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-screenshots-${{ github.run_number }}
-          path: "*.png"
+          path: screenshots/*.png
           retention-days: 14
+          if-no-files-found: error
