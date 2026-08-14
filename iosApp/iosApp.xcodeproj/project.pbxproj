@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		E2B8646E932749934C3D431A /* ForgeFocusTemp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeFocusTemp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2B8646E932749934C3D431A /* ForgeFocus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeFocus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,7 +59,7 @@
 		28F64C63FC6B14670AF261D7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E2B8646E932749934C3D431A /* ForgeFocusTemp.app */,
+				E2B8646E932749934C3D431A /* ForgeFocus.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 			packageProductDependencies = (
 			);
 			productName = iosApp;
-			productReference = E2B8646E932749934C3D431A /* ForgeFocusTemp.app */;
+			productReference = E2B8646E932749934C3D431A /* ForgeFocus.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

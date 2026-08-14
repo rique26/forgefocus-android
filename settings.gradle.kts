@@ -1,4 +1,4 @@
-rootProject.name = "ForgeFocusTemp"
+rootProject.name = "ForgeFocus"
 
 pluginManagement {
     repositories {

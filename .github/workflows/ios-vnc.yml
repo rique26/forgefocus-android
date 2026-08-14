@@ -1,0 +1,106 @@
+name: iOS Build e Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ios-live:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Permissão Gradle
+        run: chmod +x gradlew
+
+      # Compila o framework Kotlin para o iOS Simulator
+      - name: Build Kotlin iOS Framework
+        run: |
+          ./gradlew :shared:compileKotlinIosX64 :shared:compileKotlinIosSimulatorArm64
+
+      # Compila o .app do iOS
+      - name: Build .app para Simulator
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      # Instalação recomendada e oficial do CLI do Maestro
+      - name: Setup Maestro CLI
+        uses: mobile-dev-inc/action-maestro-cli@v1.1.0
+
+      - name: Iniciar Simulator e Instalar App
+        run: |
+          UDID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
+          echo "UDID=$UDID" >> $GITHUB_ENV
+          echo "Usando Simulator: $UDID"
+
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+          APP_PATH=$(find build/ios -name "*.app" -not -path "*/Intermediates*" | head -1)
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+
+          xcrun simctl install "$UDID" "$APP_PATH"
+
+      - name: Criar Flow do Maestro
+        run: |
+          mkdir -p .maestro
+          cat > .maestro/screenshots.yaml << 'EOF'
+          # ATENÇÃO: Ajuste este ID se o seu Bundle ID no Xcode for diferente
+          appId: com.app.forgefocus
+          ---
+          - launchApp
+          - takeScreenshot: screenshot_1_home
+          - swipe:
+              start: 90%, 50%
+              end: 10%, 50%
+          - takeScreenshot: screenshot_2_swipe
+          - tapOn:
+              point: 50%, 50%
+          - takeScreenshot: screenshot_3_detail
+          - swipe:
+              start: 50%, 70%
+              end: 50%, 30%
+          - takeScreenshot: screenshot_4_scroll
+          EOF
+
+      - name: Rodar Flow do Maestro
+        run: |
+          maestro test .maestro/screenshots.yaml
+
+      - name: Copiar Screenshots pro Workspace
+        run: |
+          find ~/.maestro/tests -name "*.png" -exec cp {} . \; 2>/dev/null || find . -name "*.png" -exec cp {} . \;
+          ls -la *.png
+
+      - name: Salvar Screenshots como Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots-${{ github.run_number }}
+          path: "*.png"
+          retention-days: 14
