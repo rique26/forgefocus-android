@@ -24,17 +24,18 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.konan
+          key: ${{ runner.os }}-gradle-konan-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-gradle-konan-
 
       - name: Permissão Gradle
         run: chmod +x gradlew
 
-      # Compila o Kotlin para os simuladores iOS
+      # Compila o Kotlin para o simulador iOS (Apple Silicon)
       - name: Build Kotlin iOS Framework
         run: |
-          ./gradlew :shared:compileKotlinIosX64 :shared:compileKotlinIosSimulatorArm64
+          ./gradlew :shared:compileKotlinIosSimulatorArm64
 
       # Compila o aplicativo iOS para o Simulator
       - name: Build .app para Simulator
