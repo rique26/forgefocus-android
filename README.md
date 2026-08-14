@@ -1,56 +1,31 @@
-# ⛏️ ForgeFocus — Produtividade Gamificada
+This is a Kotlin Multiplatform project targeting Android, iOS.
 
-O **ForgeFocus** é um aplicativo Android nativo baseado na metodologia de blocos de foco (estilo Pomodoro). O usuário registra blocos de 30 minutos de foco para evoluir metas de longo prazo de forma gamificada.
+* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
+  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
 
-O projeto foi construído em Kotlin usando os padrões recomendados pelo Google (**Guide to App Architecture**), aplicando **Clean Architecture** e desenvolvimento orientado a pacotes por funcionalidade (*Feature-Driven*).
+* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
+  It contains several subfolders:
+  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
+  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
+    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
+    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
+    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
+    folder is the appropriate location.
 
----
+### Running the apps
 
-## 📐 Estrutura do Projeto & Arquitetura
+Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
 
-O projeto adota o fluxo unidirecional de dados (**UDF**) aliado ao padrão **MVVM/MVI** para manipulação de estados e intenções da interface de forma imutável.
+- Android app: `./gradlew :androidApp:assembleDebug`
+- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
 
-A árvore de diretórios separa a infraestrutura global (`core`) do módulo específico da funcionalidade de metas (`features`):
+### Running tests
 
+Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 
-### Responsabilidades das Camadas:
-* **Data:** Gerencia o armazenamento local com **Room Database**. As entidades do banco (`GoalEntity`, `ProgressLogEntity`) são isoladas e convertidas para objetos de domínio puramente em Kotlin através de mappers.
-* **Domain:** Isola as regras de negócio em casos de uso independentes (`BreakMountainBlockUseCase`, `GetDashboardDataUseCase`), facilitando a escrita de testes unitários.
-* **Presentation:** Consome estados imutáveis do `DashboardViewModel` via `StateFlow` e processa as ações do usuário mapeadas como eventos unificados (`MountainsEvent`).
-
----
-
-## 🛠️ Stack Tecnológica
-
-* **UI:** Jetpack Compose (Paradigma declarativo e componentes customizados com `MountainCanvas`).
-* **Navegação:** Type-Safe Navigation (Navegação baseada em tipos seguros/objetos, eliminando Strings).
-* **Injeção de Dependência:** Hilt (Dagger).
-* **Banco de Dados Local:** Room Database com controle de conversores de tipo (`Converters`).
-* **Assincronismo:** Kotlin Coroutines & Flow (uso de operadores como `flatMapLatest` e `combine`).
+- Android tests: `./gradlew :shared:testAndroidHostTest`
+- iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
 
 ---
 
-## 🚀 Desafios Implementados
-
-### 1. Filtro Temporal Dinâmico de Dados
-* **Contexto:** Filtrar o histórico de blocos de foco do usuário por blocos de Dia, Semana, Mês ou Ano no passado.
-* **Solução:** Centralizado no `GetDashboardDataUseCase`, que recalcula os intervalos de tempo (milissegundos) com base no deslocamento (`timeOffset`) selecionado pelo usuário. O fluxo se conecta ao banco de dados usando `flatMapLatest`, atualizando a tela de forma reativa à medida que o usuário navega pelo histórico.
-
-### 2. Controle de Recomposições no Jetpack Compose
-* **Contexto:** Manter a rolagem de listas fluida em componentes dinâmicos repetitivos.
-* **Solução:** Uso explícito de chaves estáveis (`key`) nos escopos de loops do `LazyColumn` para forçar o Compose a pular a recomposição de cards cujos dados não sofreram alterações.
-
----
-
-## 🏁 Status do Projeto
-
-O **ForgeFocus** está em fase de **MVP (Minimum Viable Product)**. As regras fundamentais de persistência offline, lógica de foco e navegação estruturada estão implementadas e prontas para a adição de novas interfaces e funcionalidades.
-
----
-
-## ⚙️ Como Rodar o Projeto
-
-1. Certifique-se de utilizar o **Android Studio Ladybug** (ou superior).
-2. Clone o repositório:
-   ```bash
-   git clone [https://github.com/seu-usuario/forgefocus-android.git](https://github.com/seu-usuario/forgefocus-android.git)
+Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
