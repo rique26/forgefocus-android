@@ -10,4 +10,5 @@ plugins {
     alias(libs.plugins.kotlinSerialization) apply false
     alias(libs.plugins.googleKsp) apply false
     alias(libs.plugins.androidx.room) apply false
+    alias(libs.plugins.mokkery) apply false
 }

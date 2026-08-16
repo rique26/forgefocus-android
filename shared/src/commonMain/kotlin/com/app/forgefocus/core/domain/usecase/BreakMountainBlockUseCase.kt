@@ -4,11 +4,16 @@ import com.app.forgefocus.features.mountains.domain.GoalRepository
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-class BreakMountainBlockUseCase (
+interface BreakMountainBlockUseCase {
+    suspend operator fun invoke(goalId: Long): Result<Unit>
+}
+
+class BreakMountainBlockUseCaseImpl (
     private val repository: GoalRepository
-) {
+) : BreakMountainBlockUseCase {
+
     @OptIn(ExperimentalTime::class)
-    suspend operator fun invoke(goalId: Long): Result<Unit> = runCatching {
+    override suspend operator fun invoke(goalId: Long): Result<Unit> = runCatching {
         val goal = repository.getGoalById(goalId) ?: throw Exception("Goal not found")
 
         val totalBlocksInMountain = goal.totalTarget

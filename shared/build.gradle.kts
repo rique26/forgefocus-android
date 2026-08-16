@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.googleKsp)
     alias(libs.plugins.androidx.room)
+    alias(libs.plugins.mokkery)
 }
 
 room {
@@ -56,10 +57,9 @@ kotlin {
             implementation(libs.compose.uiTooling)
         }
 
-        val androidHostTest by getting {
-            dependencies {
-                implementation(libs.mockk)
-            }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         commonMain.dependencies {
@@ -93,6 +93,7 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.turbine)
         }
     }
 }

@@ -4,8 +4,12 @@ import com.app.forgefocus.core.domain.model.Goal
 import com.app.forgefocus.features.mountains.domain.GoalRepository
 import kotlinx.coroutines.flow.Flow
 
-class GetGoalsUseCase (
+interface GetGoalsUseCase {
+    operator fun invoke(): Flow<List<Goal>>
+}
+
+class GetGoalsUseCaseImpl(
     private val repository: GoalRepository
-) {
-    operator fun invoke(): Flow<List<Goal>> = repository.getAllGoals()
+) : GetGoalsUseCase {
+    override operator fun invoke(): Flow<List<Goal>> = repository.getAllGoals()
 }

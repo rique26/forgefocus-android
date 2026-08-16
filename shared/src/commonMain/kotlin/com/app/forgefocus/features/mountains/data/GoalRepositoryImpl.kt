@@ -70,7 +70,9 @@ class GoalRepositoryImpl (
         }
     }
 
-    override fun getLogsByPeriod(start: Long, end: Long): Flow<List<ProgressLogEntity>> {
-        return progressLogDao.getLogsByPeriod(start, end)
+    override fun getLogsByPeriod(start: Long, end: Long): Flow<List<ProgressLog>> {
+        return progressLogDao.getLogsByPeriod(start, end).map { entities ->
+            entities.map { it.toDomain() }
+        }
     }
 }

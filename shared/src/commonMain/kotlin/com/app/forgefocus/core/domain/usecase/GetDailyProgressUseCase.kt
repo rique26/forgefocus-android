@@ -12,13 +12,16 @@ import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+interface GetDailyProgressUseCase {
+    operator fun invoke(goalId: Long): Flow<DailyProgress>
+}
 
-class GetDailyProgressUseCase (
+class GetDailyProgressUseCaseImpl(
     private val repository: GoalRepository
-) {
+) : GetDailyProgressUseCase {
 
     @OptIn(ExperimentalTime::class)
-    operator fun invoke(goalId: Long): Flow<DailyProgress> {
+    override operator fun invoke(goalId: Long): Flow<DailyProgress> {
         val zone = TimeZone.currentSystemDefault()
         val today = Clock.System.todayIn(zone)
         val startOfDay = today.atStartOfDayIn(zone).toEpochMilliseconds()

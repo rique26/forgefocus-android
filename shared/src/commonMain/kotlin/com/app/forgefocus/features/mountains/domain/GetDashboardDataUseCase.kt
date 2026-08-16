@@ -7,10 +7,21 @@ import com.app.forgefocus.features.mountains.presentation.viewmodel.GoalProgress
 import com.app.forgefocus.features.mountains.presentation.viewmodel.MountainStats
 import kotlin.time.ExperimentalTime
 
-class GetDashboardDataUseCase {
+interface GetDashboardDataUseCase {
+    operator fun invoke(
+        goals: List<Goal>,
+        logs: List<ProgressLog>,
+        period: PeriodFilter,
+        timeOffset: Int,
+        startTimeWindow: Long,
+        endTimeWindow: Long
+    ): Pair<List<GoalProgress>, MountainStats>
+}
+
+class GetDashboardDataUseCaseImpl : GetDashboardDataUseCase {
 
     @OptIn(ExperimentalTime::class)
-    operator fun invoke(
+    override operator fun invoke(
         goals: List<Goal>,
         logs: List<ProgressLog>,
         period: PeriodFilter,
