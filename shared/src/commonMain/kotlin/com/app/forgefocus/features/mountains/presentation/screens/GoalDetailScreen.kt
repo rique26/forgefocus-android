@@ -168,12 +168,10 @@ fun GoalDetailScreen(
 //            }
 
             MountainReveal(
-                progressFraction = historicalGoal.getProgressPercentageForPeriod(uiState.selectedPeriod),
+                goal = historicalGoal,
                 seed = historicalGoal.id,
                 accentColor = Color(historicalGoal.color),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
+                modifier = Modifier.fillMaxWidth().height(220.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))

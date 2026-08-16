@@ -117,6 +117,7 @@ fun GoalCard(
             }
 
             MountainSnapshot(
+                goal = goal,
                 progressFraction = progress,
                 seed = goal.id,
                 modifier = Modifier
