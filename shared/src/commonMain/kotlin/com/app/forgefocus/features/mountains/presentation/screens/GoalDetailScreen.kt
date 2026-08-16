@@ -50,6 +50,7 @@ import com.app.forgefocus.core.domain.model.PeriodFilter
 import com.app.forgefocus.features.mountains.presentation.components.DailyProgressBlocks
 import com.app.forgefocus.features.mountains.presentation.components.FilterButtons
 import com.app.forgefocus.features.mountains.presentation.components.MountainCanvas
+import com.app.forgefocus.features.mountains.presentation.components.MountainReveal
 import com.app.forgefocus.features.mountains.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -156,15 +157,24 @@ fun GoalDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // CANVAS DA MONTANHA (Muda dinamicamente conforme os blocos do histórico)
-            Box(
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(220.dp)
+//                    .background(Color(0xFFF9FAFB), shape = RoundedCornerShape(12.dp))
+//                    .padding(12.dp)
+//            ) {
+//                MountainCanvas(goal = historicalGoal)
+//            }
+
+            MountainReveal(
+                progressFraction = historicalGoal.getProgressPercentageForPeriod(uiState.selectedPeriod),
+                seed = historicalGoal.id,
+                accentColor = Color(historicalGoal.color),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .background(Color(0xFFF9FAFB), shape = RoundedCornerShape(12.dp))
-                    .padding(12.dp)
-            ) {
-                MountainCanvas(goal = historicalGoal)
-            }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
