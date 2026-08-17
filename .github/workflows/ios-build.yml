@@ -79,6 +79,7 @@ jobs:
             ONLY_ACTIVE_ARCH=YES
           
       - name: Debug — mostrar símbolos gerados do Koin no header
+        if: always()
         run: |
           HEADER="$(find "$RUNNER_TEMP/DerivedData" shared/build -iname "Shared.h" 2>/dev/null | head -1)"
           if [ -n "$HEADER" ]; then
