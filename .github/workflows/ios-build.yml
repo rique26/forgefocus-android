@@ -65,21 +65,6 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Fail-fast: se o framework Kotlin/Native não compilar, falha aqui com
-      # o log completo do Gradle, muito mais legível que um erro genérico
-      # do xcodebuild mais adiante. O Xcode chamaria essa mesma task de
-      # qualquer forma via Run Script Build Phase durante o build abaixo.
-      #
-      # Só existe target iosSimulatorArm64 (sem iosX64) no shared/build.gradle.kts,
-      # então arm64 é a única arquitetura de simulador válida — e é justamente
-      # a nativa dos runners macos-15 (Apple Silicon), sem overhead de Rosetta.
-      - name: Build & embed Kotlin framework (Simulator arm64)
-        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode
-        env:
-          CONFIGURATION: Debug
-          SDK_NAME: iphonesimulator
-          ARCHS: arm64
-
       - name: Build iOS app for Simulator
         working-directory: iosApp
         run: |
