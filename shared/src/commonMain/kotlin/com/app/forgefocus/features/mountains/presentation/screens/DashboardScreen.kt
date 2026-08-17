@@ -26,11 +26,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.app.forgefocus.core.domain.model.DurationUnit
 import com.app.forgefocus.core.domain.model.Goal
-import com.app.forgefocus.core.domain.model.GoalType
 import com.app.forgefocus.core.domain.model.PeriodFilter
 import com.app.forgefocus.features.mountains.presentation.components.CreateGoalBottomSheet
 import com.app.forgefocus.features.mountains.presentation.components.DashboardTopBar
@@ -40,15 +37,10 @@ import com.app.forgefocus.features.mountains.presentation.components.GoalCard
 import com.app.forgefocus.features.mountains.presentation.components.StatsBar
 import com.app.forgefocus.features.mountains.presentation.viewmodel.DashboardUiState
 import com.app.forgefocus.features.mountains.presentation.viewmodel.DashboardViewModel
-import com.app.forgefocus.features.mountains.presentation.viewmodel.GoalProgress
-import com.app.forgefocus.features.mountains.presentation.viewmodel.MountainStats
 import com.app.forgefocus.features.mountains.presentation.viewmodel.MountainsEvent
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 @Composable
 fun DashboardScreen(
@@ -216,95 +208,6 @@ fun DashboardScreenContent(
         CreateGoalBottomSheet(
             onDismiss = { showCreateModal = false },
             onCreateGoal = onCreateGoal
-        )
-    }
-}
-
-@OptIn(ExperimentalTime::class)
-@Preview(showBackground = true, name = "Dashboard com Metas")
-@Composable
-fun DashboardScreenPopulatedPreview() {
-    // Mock simples de dados fictícios para renderizar no painel do Android Studio
-    val mockGoals = listOf(
-        GoalProgress(
-            goal = Goal(
-                id = 1L,
-                title = "Estudar Kotlin Avançado",
-                type = GoalType.DAILY,
-                duration = 3,
-                durationUnit = DurationUnit.WEEKS,
-                dailyTarget = 2.0f,
-                totalTarget = 180,
-                progress = 45,
-                dayProgress = 2,
-                createdAt = Clock.System.now().toEpochMilliseconds(),
-                color = 0xFF4CAF50L
-            ),
-            period = PeriodFilter.DAILY // Usando o construtor reativo inteligente
-        ),
-        GoalProgress(
-            goal = Goal(
-                id = 2L,
-                title = "Treino de Violino (Fischer)",
-                type = "PROJECT".let { GoalType.PROJECT },
-                duration = 6,
-                durationUnit = DurationUnit.WEEKS,
-                dailyTarget = 1.5f,
-                totalTarget = 240,
-                progress = 12,
-                dayProgress = 1,
-                createdAt = Clock.System.now().toEpochMilliseconds(),
-                color = 0xFFFF9800L
-            ),
-            period = PeriodFilter.DAILY
-        )
-    )
-
-    val mockState = DashboardUiState(
-        goals = mockGoals,
-        selectedPeriod = PeriodFilter.DAILY,
-        stats = MountainStats(
-            goalsCount = 2,
-            blocksTodayCount = 6,
-            overallProgress = 0.6f
-        )
-    )
-
-    MaterialTheme {
-        DashboardScreenContent(
-            uiState = mockState,
-            eventFlow = emptyFlow(),
-            onNavigateToDetail = {},
-            onChangePeriod = {},
-            onBreakMountainBlock = {},
-            onDeleteGoal = {},
-            onCreateGoal = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Dashboard Vazio")
-@Composable
-fun DashboardScreenEmptyPreview() {
-    val mockState = DashboardUiState(
-        goals = emptyList(),
-        selectedPeriod = PeriodFilter.DAILY,
-        stats = MountainStats(
-            goalsCount = 0,
-            blocksTodayCount = 0,
-            overallProgress = 0.0f
-        )
-    )
-
-    MaterialTheme {
-        DashboardScreenContent(
-            uiState = mockState,
-            eventFlow = emptyFlow(),
-            onNavigateToDetail = {},
-            onChangePeriod = {},
-            onBreakMountainBlock = {},
-            onDeleteGoal = {},
-            onCreateGoal = {}
         )
     }
 }

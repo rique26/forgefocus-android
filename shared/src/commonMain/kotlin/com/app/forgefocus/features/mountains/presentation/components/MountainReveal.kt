@@ -171,6 +171,23 @@ private const val LABEL_GRID = 96          // resolução maior p/ suportar mais
 private const val MIN_SEED_DIST_FLOOR = 0.012f  // menor distância permitida entre pedras (packing denso)
 private const val MIN_SEED_DIST_CEIL = 0.05f    // maior distância permitida (poucas pedras, mais espaçadas)
 
+/**
+ * Gera as "pedras" (células) em que a montanha será quebrada.
+ *
+ * Estratégia: espalha [cellCount] sementes aleatórias dentro da silhueta
+ * (respeitando uma distância mínima entre elas pra não ficarem células
+ * minúsculas grudadas) e depois faz uma espécie de Voronoi discreto — cada
+ * célula de uma grade fina ([LABEL_GRID] x [LABEL_GRID]) é atribuída à
+ * semente mais próxima. Isso garante que as pedras se encaixem perfeitamente
+ * sem espaços vazios entre elas.
+ *
+ * Mesma [seed] sempre produz o mesmo resultado — é o que permite a montanha
+ * quebrar de forma consistente entre [MountainReveal] (animada) e
+ * [MountainSnapshot] (estática).
+ *
+ * @param cellCount quantas pedras tentar gerar (efetivo pode ser menor se a silhueta for pequena).
+ * @param seed semente determinística — normalmente o id da meta.
+ */
 fun buildShatterCells(cellCount: Int, seed: Long): List<ShatterCell> {
     val rnd = Random(seed)
     val seeds = mutableListOf<Offset>()
@@ -503,6 +520,23 @@ private fun buildThresholds(cellCount: Int, totalTarget: Int): List<Int> =
         fixed
     }
 
+/**
+ * Versão **animada** da montanha, usada em [GoalDetailScreen][com.app.forgefocus.features.mountains.presentation.screens.GoalDetailScreen].
+ *
+ * Mostra a montanha inteira e, conforme [Goal.progress] avança, vai
+ * "quebrando" pedras (ver [buildShatterCells]) e empilhando blocos coloridos
+ * à direita ([pileTargetPosition]). O bloco mais recente sempre voa da pedra
+ * ativa até a pilha ([FallingPiece]); os demais já ficam parados, desenhados
+ * direto no Canvas (igual ao [MountainSnapshot]).
+ *
+ * Rola horizontalmente quando a pilha cresce além da largura visível, e
+ * acompanha automaticamente o bloco recém-caído pra ele nunca sair de vista.
+ *
+ * @param goal meta atual (fornece progresso e alvo total).
+ * @param seed semente determinística — garante que a mesma montanha sempre
+ *   quebre nas mesmas pedras e empilhe com o mesmo jitter entre recomposições.
+ * @param accentColor cor usada nos blocos da pilha (normalmente a cor da meta).
+ */
 @Composable
 fun MountainReveal(
     goal: Goal,
@@ -707,6 +741,16 @@ fun MountainReveal(
     }
 }
 
+/**
+ * Renderiza a "pedra" que está atualmente sendo minerada (a fatia ativa).
+ *
+ * Conforme [localProgress] cresce (0f = intacta, 1f = prestes a soltar), a
+ * pedra encolhe e escurece levemente, e rachaduras (ver [crackEndpoints])
+ * crescem em opacidade — feedback visual imediato a cada clique, antes do
+ * pedaço realmente sumir (quando o próximo threshold é atingido e a célula
+ * entra em [brokenSet][MountainReveal] no composable pai). Quando é a última
+ * pedra da montanha ([isFinalCell]), ganha um glow dourado pulsante.
+ */
 @Composable
 private fun ErodingCell(
     cell: ShatterCell,
@@ -799,6 +843,21 @@ private fun ErodingCell(
     }
 }
 
+/**
+ * Anima o voo de **um único bloco** (o mais recente) da pedra de origem até
+ * sua posição final na pilha ([pileTargetPosition]).
+ *
+ * O movimento combina três animações independentes, todas dirigidas por
+ * [progressAnim] (0f→1f, a "viagem" em si) e [landAnim] (0f→1f, o "baque" ao
+ * pousar): um arco parabólico (seno) na trajetória, giros completos aleatórios
+ * ([fullSpins]) e um esmagamento/esticamento elástico no instante do pouso.
+ * A sombra de contato encolhe e clareia conforme o bloco sobe no arco, pra
+ * simular altura.
+ *
+ * Recriado a cada novo [slotIndex] (via `key(progress)` no chamador), então
+ * cada bloco tem sua própria animação isolada — o anterior já ficou estático,
+ * desenhado direto no Canvas da pilha.
+ */
 @Composable
 private fun FallingPiece(
     slotIndex: Int,        // posição na pilha (0-based, = progress - 1 no momento do voo)
@@ -894,6 +953,20 @@ private fun FallingPiece(
 // ============================================================
 // 5. VERSÃO ESTÁTICA (GoalCard) — "print" do estado atual
 // ============================================================
+
+/**
+ * Versão **estática** (sem animação) da montanha, usada no card da listagem
+ * (`GoalCard`) — um "print" fiel do estado atual, usando exatamente as
+ * mesmas funções de geometria e desenho de [MountainReveal]
+ * ([buildShatterCells], [pileTargetPosition], [drawPileBlock],
+ * [drawCraterShading], [drawGroundShadow]) pra garantir que a montanha e a
+ * pilha fiquem visualmente idênticas entre as duas telas.
+ *
+ * @param goal meta a ser exibida (usa `progress`/`totalTarget` no estado atual).
+ * @param seed mesma semente usada em [MountainReveal] pra essa meta — garante
+ *   que a mesma pedra quebrada e a mesma pilha apareçam nas duas telas.
+ * @param accentColor cor dos blocos da pilha; por padrão usa a cor da própria meta.
+ */
 @Composable
 fun MountainSnapshot(
     goal: Goal,

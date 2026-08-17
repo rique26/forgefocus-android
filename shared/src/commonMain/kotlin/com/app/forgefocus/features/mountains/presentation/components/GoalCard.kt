@@ -97,19 +97,6 @@ fun GoalCard(
             )
 
 
-
-//            Spacer(modifier = Modifier.height(16.dp))
-//
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(180.dp)
-//                    .background(Color(0xFFF9FAFB), shape = RoundedCornerShape(12.dp))
-//                    .padding(8.dp)
-//            ) {
-//                MountainCanvas(goal = goal)
-//            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(
@@ -153,7 +140,6 @@ fun CustomBadge(text: String) {
     }
 }
 
-// ---------- Previews (sem mudanças) ----------
 
 @OptIn(ExperimentalTime::class)
 @Preview(showBackground = true, name = "Card com Progresso")
