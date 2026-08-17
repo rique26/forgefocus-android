@@ -77,6 +77,16 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=YES
+          
+      - name: Debug — mostrar símbolos gerados do Koin no header
+        run: |
+          HEADER="$(find "$RUNNER_TEMP/DerivedData" shared/build -iname "Shared.h" 2>/dev/null | head -1)"
+          if [ -n "$HEADER" ]; then
+            echo "Header encontrado: $HEADER"
+            grep -i "initkoin\|appmodule" "$HEADER" || echo "Nenhum símbolo com esses nomes encontrado"
+          else
+            echo "Shared.h não encontrado ainda (normal se rodar antes do build)"
+          fi
 
       - name: Locate and package the .app bundle
         run: |
