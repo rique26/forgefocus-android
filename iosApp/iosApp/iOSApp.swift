@@ -5,7 +5,7 @@ import Shared
 struct iOSApp: App {
 
     init() {
-        SharedAppModuleKt.doInitKoin()
+        AppModuleKt.doInitKoin()
     }
 
     var body: some Scene {
