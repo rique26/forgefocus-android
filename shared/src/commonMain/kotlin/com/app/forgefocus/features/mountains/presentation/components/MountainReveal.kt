@@ -1,5 +1,10 @@
 package com.app.forgefocus.features.mountains.presentation.components
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -53,7 +58,7 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.random.Random
 
-private const val SQUARE_BLOCK_RATIO = 0.09f
+private const val SQUARE_BLOCK_RATIO = 0.04f
 
 // montanha reduzida mantendo proporção (mesma escala em X e Y) e encostada à esquerda;
 // o espaço que sobra à direita fica livre pra pilha de bloquinhos.
@@ -61,7 +66,7 @@ private const val SQUARE_BLOCK_RATIO = 0.09f
 // desperdiçava espaço em cima e deixava a base flutuando longe da sombra (ver
 // MOUNTAIN_CONTENT_BOTTOM_FRACTION abaixo). Agora que a base é ancorada no chão
 // junto com a pilha, dá pra crescer sem estourar o card.
-private const val MOUNTAIN_SCALE = 0.70f
+private const val MOUNTAIN_SCALE = 1f
 
 // ============================================================
 // 1. CARREGAMENTO DO BITMAP (portável, sem API Android)
@@ -292,6 +297,37 @@ private fun pileTargetPosition(
 }
 
 /**
+ * Largura total de conteúdo necessária pra caber [totalTarget] blocos na pilha
+ * sem estourar a altura disponível — calcula quantas linhas cabem verticalmente
+ * e, a partir disso, quantas colunas são necessárias. Nunca fica menor que a
+ * viewport (a montanha continua preenchendo bem quando há poucos blocos).
+ */
+
+private const val PILE_WIDTH_BIAS = 2.2f
+
+private fun computeContentWidth(
+    viewportWidth: Float,
+    mountainWidth: Float,
+    totalTarget: Int,
+    squareSize: Float,
+    availableHeight: Float
+): Float {
+    val spacing = squareSize * PILE_SPACING_FACTOR
+    val maxRows = ((availableHeight * (1f - PILE_MARGIN_BOTTOM_FRACTION)) / spacing)
+        .toInt()
+        .coerceAtLeast(1)
+    // divide o maxRows pelo bias antes de calcular colunas — isso força o layout
+    // a preferir espalhar os blocos horizontalmente em vez de empilhar bem alto
+    val effectiveMaxRows = (maxRows / PILE_WIDTH_BIAS).toInt().coerceAtLeast(1)
+    val neededCols = kotlin.math.ceil(totalTarget.toFloat() / effectiveMaxRows).toInt().coerceAtLeast(1)
+    val pileAreaWidth = neededCols * spacing
+    val gap = viewportWidth * PILE_GAP_FROM_MOUNTAIN_FRACTION
+    val marginRight = viewportWidth * PILE_MARGIN_RIGHT_FRACTION
+    val needed = mountainWidth + gap + pileAreaWidth + marginRight
+    return needed.coerceAtLeast(viewportWidth)
+}
+
+/**
  * Pequena variação determinística (rotação + deslocamento) por bloco da pilha,
  * pra fugir da grade "caixa de ovos" e parecer minério empilhado à mão.
  * Mesma [slotIndex] + [seed] sempre gera o mesmo jitter — usado tanto na
@@ -475,24 +511,24 @@ fun MountainReveal(
     modifier: Modifier = Modifier
 ) {
     val bitmap = rememberMountainBitmap()
-    var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
 
     Box(
         modifier
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFFF9FAFB))
-            .onSizeChanged { boxSize = it }
+            .onSizeChanged { viewportSize = it }
     ) {
-        if (bitmap != null && boxSize.width > 0 && boxSize.height > 0) {
-            val w = boxSize.width.toFloat()
-            val h = boxSize.height.toFloat()
+        if (bitmap != null && viewportSize.width > 0 && viewportSize.height > 0) {
+            val viewportW = viewportSize.width.toFloat()
+            val h = viewportSize.height.toFloat()
 
-            // montanha reduzida mantendo proporção (mesmo fator em X e Y), encostada à esquerda
-            val mw = w * MOUNTAIN_SCALE
+            // montanha ancorada na VIEWPORT (não no conteúdo total) — ela sempre
+            // preenche bem o espaço visível ao abrir a tela, mesmo com scroll disponível
+            val mw = viewportW * MOUNTAIN_SCALE
             val mh = h * MOUNTAIN_SCALE
-            // mesma linha de chão da pilha (PILE_MARGIN_BOTTOM_FRACTION) — a base
-            // *visível* da montanha (não o bbox inteiro) encosta exatamente aqui,
-            // então sombra e silhueta ficam grudadas em vez de flutuando separadas
             val groundY = h * (1f - PILE_MARGIN_BOTTOM_FRACTION)
             val offsetY = (groundY - mh * MOUNTAIN_CONTENT_BOTTOM_FRACTION).coerceAtLeast(h * 0.02f)
             val squareSize = min(mw, mh) * SQUARE_BLOCK_RATIO
@@ -500,17 +536,20 @@ fun MountainReveal(
             val totalTarget = goal.totalTarget
             val progress = goal.progress.coerceIn(0, totalTarget)
 
-            val cells = remember(seed, goal.totalTarget) {
-                buildShatterCells(visualCellCountFor(goal.totalTarget), seed)
+            val contentWidth = remember(viewportW, mw, totalTarget, squareSize, h) {
+                computeContentWidth(viewportW, mw, totalTarget, squareSize, h)
+            }
+            val contentWidthDp = with(density) { contentWidth.toDp() }
+
+            val cells = remember(seed, totalTarget) {
+                buildShatterCells(visualCellCountFor(totalTarget), seed)
             }
             val breakOrder = remember(seed, cells) { cells.indices.shuffled(Random(seed)) }
             val thresholds = remember(cells.size, totalTarget) { buildThresholds(cells.size, totalTarget) }
 
-            // quantas fatias já 100% quebradas
             val brokenCount = remember(progress, thresholds) { thresholds.count { progress >= it } }
             val brokenSet = remember(brokenCount, breakOrder) { breakOrder.take(brokenCount).toSet() }
 
-            // progresso local (0f..1f) da fatia que está sendo quebrada agora
             val currentLocalProgress = remember(progress, thresholds, brokenCount) {
                 if (brokenCount >= cells.size) 1f
                 else {
@@ -521,93 +560,146 @@ fun MountainReveal(
                 }
             }
             val currentCellIndex = if (brokenCount < breakOrder.size) breakOrder[brokenCount] else null
-            // true quando a célula ativa é a ÚLTIMA que falta quebrar — sinaliza "quase lá"
             val isFinalCell = brokenCount == cells.size - 1
 
-            val remainingPath = remember(brokenSet, cells, mw, mh, offsetY) {
-                var path = silhouettePath(mw, mh, offsetY = offsetY)
-                brokenSet.forEach { idx ->
-                    val cellPx = scalePath(cells[idx].path, mw, mh, offsetY = offsetY)
-                    val next = Path()
-                    next.op(path, cellPx, PathOperation.Difference)
-                    path = next
-                }
-                path
-            }
-
-            // sombras de contato + montanha com buracos onde já quebrou de vez, mais a
-            // sombra de "cratera" nesses buracos pra dar sensação de profundidade
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                // ancora a montanha no "chão" do card — mesma groundY da base visível
-                // da silhueta, então a sombra encosta de verdade, sem gap
-                drawGroundShadow(
-                    left = mw * 0.06f,
-                    right = mw * 0.98f,
-                    groundY = groundY,
-                    thickness = h * 0.035f
-                )
-                // ancora a pilha na mesma linha, só quando já existe algo empilhado
-                if (brokenSet.isNotEmpty()) {
-                    val pileLeft = mw + w * PILE_GAP_FROM_MOUNTAIN_FRACTION
-                    val pileRight = w * (1f - PILE_MARGIN_RIGHT_FRACTION)
-                    drawGroundShadow(
-                        left = pileLeft,
-                        right = pileRight,
-                        groundY = groundY,
-                        thickness = h * 0.03f
-                    )
-                }
-
-                clipPath(remainingPath) {
-                    drawImage(
-                        bitmap,
-                        dstOffset = IntOffset(0, offsetY.toInt()),
-                        dstSize = IntSize(mw.toInt(), mh.toInt())
-                    )
-                }
-                brokenSet.forEach { idx ->
-                    val cellPx = scalePath(cells[idx].path, mw, mh, offsetY = offsetY)
-                    val centroidPx = Offset(
-                        cells[idx].centroid.x * mw,
-                        cells[idx].centroid.y * mh + offsetY
-                    )
-                    drawCraterShading(cellPx, centroidPx)
+            // acompanha automaticamente o bloco mais recente quando ele cai fora
+            // da área visível, pra nunca perder a recompensa do clique
+            LaunchedEffect(brokenCount, contentWidth) {
+                if (brokenCount == 0) return@LaunchedEffect
+                val lastSlot = brokenCount - 1
+                val target = pileTargetPosition(lastSlot, squareSize, mw, contentWidth, h)
+                val blockRight = target.x + squareSize
+                val visibleLeft = scrollState.value.toFloat()
+                val visibleRight = visibleLeft + viewportW
+                when {
+                    blockRight > visibleRight -> {
+                        val dest = (blockRight - viewportW + viewportW * 0.08f)
+                            .toInt()
+                            .coerceIn(0, scrollState.maxValue)
+                        scrollState.animateScrollTo(dest)
+                    }
+                    target.x < visibleLeft -> {
+                        scrollState.animateScrollTo(target.x.toInt().coerceAtLeast(0))
+                    }
                 }
             }
 
-            // fatia "em quebra": erosão progressiva a cada clique (feedback imediato) —
-            // continua usando o bitmap da montanha, só os blocos da pilha mudam de estilo
-            if (currentCellIndex != null && currentLocalProgress > 0f) {
-                key(currentCellIndex) {
-                    ErodingCell(
-                        cell = cells[currentCellIndex],
-                        cellIndex = currentCellIndex,
-                        seed = seed,
-                        localProgress = currentLocalProgress,
-                        mountainWidth = mw,
-                        mountainHeight = mh,
-                        offsetY = offsetY,
-                        mountainBitmap = bitmap,
-                        isFinalCell = isFinalCell
-                    )
-                }
-            }
+            Box(
+                Modifier
+                    .horizontalScroll(scrollState)
+                    .fillMaxHeight()
+            ) {
+                Box(
+                    Modifier
+                        .width(contentWidthDp)
+                        .fillMaxHeight()
+                ) {
+                    val remainingPath = remember(brokenSet, cells, mw, mh, offsetY) {
+                        var path = silhouettePath(mw, mh, offsetY = offsetY)
+                        brokenSet.forEach { idx ->
+                            val cellPx = scalePath(cells[idx].path, mw, mh, offsetY = offsetY)
+                            val next = Path()
+                            next.op(path, cellPx, PathOperation.Difference)
+                            path = next
+                        }
+                        path
+                    }
 
-            // pedaços quebrados voando pra pilha — bloco estilizado (cor sólida + bisel)
-            cells.forEachIndexed { index, cell ->
-                if (index in brokenSet) {
-                    key(index) {
-                        FallingPiece(
-                            cellIndex = breakOrder.indexOf(index),
-                            cell = cell,
-                            boxWidth = w,       // pilha usa largura TOTAL (área livre à direita)
-                            boxHeight = h,
-                            mountainWidth = mw,
-                            mountainHeight = mh,
-                            offsetY = offsetY,
-                            seed = seed,
-                            accentColor = accentColor
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawGroundShadow(
+                            left = mw * 0.06f,
+                            right = mw * 0.98f,
+                            groundY = groundY,
+                            thickness = h * 0.035f
                         )
+                        if (brokenSet.isNotEmpty()) {
+                            val pileLeft = mw + contentWidth * PILE_GAP_FROM_MOUNTAIN_FRACTION
+                            val pileRight = contentWidth * (1f - PILE_MARGIN_RIGHT_FRACTION)
+                            drawGroundShadow(
+                                left = pileLeft,
+                                right = pileRight,
+                                groundY = groundY,
+                                thickness = h * 0.03f
+                            )
+                        }
+
+                        clipPath(remainingPath) {
+                            drawImage(
+                                bitmap,
+                                dstOffset = IntOffset(0, offsetY.toInt()),
+                                dstSize = IntSize(mw.toInt(), mh.toInt())
+                            )
+                        }
+                        brokenSet.forEach { idx ->
+                            val cellPx = scalePath(cells[idx].path, mw, mh, offsetY = offsetY)
+                            val centroidPx = Offset(
+                                cells[idx].centroid.x * mw,
+                                cells[idx].centroid.y * mh + offsetY
+                            )
+                            drawCraterShading(cellPx, centroidPx)
+                        }
+                    }
+
+                    if (currentCellIndex != null && currentLocalProgress > 0f) {
+                        key(currentCellIndex) {
+                            ErodingCell(
+                                cell = cells[currentCellIndex],
+                                cellIndex = currentCellIndex,
+                                seed = seed,
+                                localProgress = currentLocalProgress,
+                                mountainWidth = mw,
+                                mountainHeight = mh,
+                                offsetY = offsetY,
+                                mountainBitmap = bitmap,
+                                isFinalCell = isFinalCell
+                            )
+                        }
+                    }
+
+                    // PILHA: 1 clique = 1 bloco, sempre — desacoplado das fatias visuais
+                    // da montanha. blocos já pousados ficam estáticos no mesmo Canvas
+                    // (como no MountainSnapshot); só o bloco mais recente anima o voo.
+                    if (progress > 0) {
+                        val landedCount = progress - 1 // todos exceto o mais recente
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            for (slot in 0 until landedCount) {
+                                val target = pileTargetPosition(
+                                    slotIndex = slot,
+                                    squareSize = squareSize,
+                                    mountainWidth = mw,
+                                    boxWidth = contentWidth,
+                                    boxHeight = h
+                                )
+                                drawPileBlock(
+                                    slotIndex = slot,
+                                    seed = seed,
+                                    target = target,
+                                    size = squareSize,
+                                    baseColor = accentColor
+                                )
+                            }
+                        }
+
+                        // bloco mais recente: anima voando a partir da fatia ativa no
+                        // momento do clique (a que está rachando, ou a última completa)
+                        val originIndex = currentCellIndex
+                            ?: breakOrder.getOrNull(brokenCount - 1)
+                            ?: breakOrder.firstOrNull()
+                        if (originIndex != null) {
+                            key(progress) {
+                                FallingPiece(
+                                    slotIndex = landedCount,
+                                    originCell = cells[originIndex],
+                                    boxWidth = contentWidth,
+                                    boxHeight = h,
+                                    mountainWidth = mw,
+                                    mountainHeight = mh,
+                                    offsetY = offsetY,
+                                    seed = seed,
+                                    accentColor = accentColor
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -709,74 +801,61 @@ private fun ErodingCell(
 
 @Composable
 private fun FallingPiece(
-    cellIndex: Int,
-    cell: ShatterCell,
-    boxWidth: Float,       // largura total do componente — onde a pilha vive, à direita
+    slotIndex: Int,        // posição na pilha (0-based, = progress - 1 no momento do voo)
+    originCell: ShatterCell, // de onde o bloco "nasce" visualmente (fatia ativa no momento do clique)
+    boxWidth: Float,
     boxHeight: Float,
-    mountainWidth: Float,  // largura da montanha já reduzida (origem geométrica do bloco)
+    mountainWidth: Float,
     mountainHeight: Float,
     offsetY: Float,
     seed: Long,
     accentColor: Color
 ) {
-    // fase 1: voo até a pilha (com arco). fase 2: pequeno "squash" de pouso.
-    val progressAnim = remember(cellIndex) { Animatable(0f) }
-    val landAnim = remember(cellIndex) { Animatable(0f) }
+    val progressAnim = remember(slotIndex) { Animatable(0f) }
+    val landAnim = remember(slotIndex) { Animatable(0f) }
 
-    LaunchedEffect(cellIndex) {
+    LaunchedEffect(slotIndex) {
         progressAnim.animateTo(1f, tween(480, easing = FastOutSlowInEasing))
         landAnim.animateTo(1f, tween(240, easing = FastOutSlowInEasing))
     }
 
     val squareSize = min(mountainWidth, mountainHeight) * SQUARE_BLOCK_RATIO
 
-    // cellIndex já é único por bloco (posição dele na ordem de quebra), então
-    // usamos ele direto como slot — sem módulo, sem colisão de posição na pilha
     val rawTarget = pileTargetPosition(
-        slotIndex = cellIndex,
+        slotIndex = slotIndex,
         squareSize = squareSize,
         mountainWidth = mountainWidth,
         boxWidth = boxWidth,
         boxHeight = boxHeight
     )
-    val jitter = remember(cellIndex, seed) { jitterFor(cellIndex, seed) }
+    val jitter = remember(slotIndex, seed) { jitterFor(slotIndex, seed) }
     val targetX = rawTarget.x + jitter.offsetXFraction * squareSize
     val targetY = rawTarget.y + jitter.offsetYFraction * squareSize
 
-    // origem: onde o bloco "nasce", centrado no centroide da célula que quebrou
-    val originX = (cell.centroid.x * mountainWidth - squareSize / 2f)
+    val originX = (originCell.centroid.x * mountainWidth - squareSize / 2f)
         .coerceIn(0f, mountainWidth - squareSize)
-    val originY = (cell.centroid.y * mountainHeight + offsetY - squareSize / 2f)
+    val originY = (originCell.centroid.y * mountainHeight + offsetY - squareSize / 2f)
         .coerceIn(offsetY, offsetY + mountainHeight - squareSize)
 
-    // gira algumas voltas completas durante o voo e sempre "aterrissa" na
-    // inclinação final do jitter — some a sensação de giro caótico sem deixar
-    // o bloco torto de forma aleatória quando pousa
-    val fullSpins = remember(cellIndex, seed) { 1 + Random(seed + cellIndex).nextInt(2) }
+    val fullSpins = remember(slotIndex, seed) { 1 + Random(seed + slotIndex).nextInt(2) }
     val totalRotation = fullSpins * 360f + jitter.angleDeg
 
     val t = progressAnim.value
     val dx = (targetX - originX) * t
 
-    // arco: sobe no meio do trajeto e desce até o alvo, em vez de reta —
-    // dá peso/física ao bloco em vez de "deslizar" até a pilha
     val arcHeight = min(mountainWidth, mountainHeight) * 0.14f
     val arcOffset = -arcHeight * sin(PI.toFloat() * t)
     val dy = (targetY - originY) * t + arcOffset
 
-    // squash & stretch no pouso: achata rapidamente e volta ao normal
     val land = landAnim.value
     val landScaleY = 1f - 0.22f * sin(PI.toFloat() * land)
     val landScaleX = 1f + 0.14f * sin(PI.toFloat() * land)
 
-    // sombra de contato: menor e mais clara quanto mais alto o bloco está no arco
     val elevation = (-arcOffset).coerceAtLeast(0f)
     val shadowAlpha = (0.2f - (elevation / arcHeight) * 0.14f).coerceIn(0.05f, 0.2f)
     val shadowScale = (1f - (elevation / arcHeight) * 0.45f).coerceIn(0.5f, 1f)
 
     Canvas(modifier = Modifier.fillMaxSize()) {
-        // sombra desenhada sem rotação, só acompanhando o deslocamento horizontal —
-        // fica "grudada" no chão da pilha enquanto o bloco voa por cima
         val shadowCenter = Offset(originX + dx + squareSize / 2f, targetY + squareSize * 1.02f)
         drawOval(
             color = Color.Black.copy(alpha = shadowAlpha),
@@ -815,11 +894,9 @@ private fun FallingPiece(
 // ============================================================
 // 5. VERSÃO ESTÁTICA (GoalCard) — "print" do estado atual
 // ============================================================
-
 @Composable
 fun MountainSnapshot(
     goal: Goal,
-    progressFraction: Float,
     seed: Long,
     accentColor: Color = Color(goal.color),
     modifier: Modifier = Modifier
@@ -844,12 +921,18 @@ fun MountainSnapshot(
             val offsetY = (groundY - mh * MOUNTAIN_CONTENT_BOTTOM_FRACTION).coerceAtLeast(h * 0.02f)
             val squareSize = min(mw, mh) * SQUARE_BLOCK_RATIO
 
-            val cells = remember(seed, goal.totalTarget) {
-                buildShatterCells(visualCellCountFor(goal.totalTarget), seed)
+            val totalTarget = goal.totalTarget
+            val progress = goal.progress.coerceIn(0, totalTarget)
+
+            // MONTANHA (fatias visuais): mesma lógica de thresholds do MountainReveal —
+            // controla só a aparência de buraco/erosão, não a contagem da pilha
+            val cells = remember(seed, totalTarget) {
+                buildShatterCells(visualCellCountFor(totalTarget), seed)
             }
             val breakOrder = remember(seed, cells) { cells.indices.shuffled(Random(seed)) }
-            val brokenCount = (progressFraction * cells.size).toInt().coerceIn(0, cells.size)
-            val brokenSet = remember(brokenCount, breakOrder) { breakOrder.take(brokenCount).toSet() }
+            val thresholds = remember(cells.size, totalTarget) { buildThresholds(cells.size, totalTarget) }
+            val brokenCellCount = remember(progress, thresholds) { thresholds.count { progress >= it } }
+            val brokenSet = remember(brokenCellCount, breakOrder) { breakOrder.take(brokenCellCount).toSet() }
 
             val remainingPath = remember(brokenSet, cells, mw, mh, offsetY) {
                 var path = silhouettePath(mw, mh, offsetY = offsetY)
@@ -871,7 +954,7 @@ fun MountainSnapshot(
                     groundY = groundY,
                     thickness = h * 0.035f
                 )
-                if (brokenSet.isNotEmpty()) {
+                if (progress > 0) {
                     val pileLeft = mw + w * PILE_GAP_FROM_MOUNTAIN_FRACTION
                     val pileRight = w * (1f - PILE_MARGIN_RIGHT_FRACTION)
                     drawGroundShadow(
@@ -901,21 +984,19 @@ fun MountainSnapshot(
                     drawCraterShading(cellPx, centroidPx)
                 }
 
-                // pilha de bloquinhos já minerados, congelada (sem animação — é o "print").
-                // bloco estilizado (cor sólida + bisel) com o mesmo jitter orgânico da
-                // versão animada, pra pilha ficar idêntica entre as duas telas.
-                brokenSet.forEachIndexed { i, _ ->
-                    // i já é a posição única do bloco na ordem de quebra — mesmo slot que
-                    // a versão animada usaria, garantindo empilhamento idêntico e sem overlap
+                // PILHA: 1 bloco por bloco de progresso real (goal.progress), não por
+                // fatia da montanha — mesma regra 1:1 do MountainReveal, só que aqui
+                // todos os blocos ficam parados (é um "print", sem voo/animação)
+                for (slot in 0 until progress) {
                     val target = pileTargetPosition(
-                        slotIndex = i,
+                        slotIndex = slot,
                         squareSize = squareSize,
                         mountainWidth = mw,
                         boxWidth = w,
                         boxHeight = h
                     )
                     drawPileBlock(
-                        slotIndex = i,
+                        slotIndex = slot,
                         seed = seed,
                         target = target,
                         size = squareSize,

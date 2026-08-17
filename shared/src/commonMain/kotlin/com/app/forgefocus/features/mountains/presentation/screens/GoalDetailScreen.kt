@@ -1,6 +1,7 @@
 package com.app.forgefocus.features.mountains.presentation.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,14 +12,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,13 +48,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.forgefocus.core.domain.model.PeriodFilter
 import com.app.forgefocus.features.mountains.presentation.components.DailyProgressBlocks
 import com.app.forgefocus.features.mountains.presentation.components.FilterButtons
-import com.app.forgefocus.features.mountains.presentation.components.MountainCanvas
 import com.app.forgefocus.features.mountains.presentation.components.MountainReveal
 import com.app.forgefocus.features.mountains.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -81,10 +87,21 @@ fun GoalDetailScreen(
         return
     }
 
+    // Cor de destaque única pra tela inteira — a mesma que já ilumina a montanha,
+    // em vez de indigo fixo espalhado pelos componentes.
+    val accent = Color(historicalGoal.color)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(historicalGoal.title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF111827)) },
+                title = {
+                    Text(
+                        historicalGoal.title,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp,
+                        color = Color(0xFF111827)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Filled.Close, "Voltar", tint = Color(0xFF111827))
@@ -92,7 +109,7 @@ fun GoalDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Filled.Delete, "Deletar", tint = Color(0xFF9CA3AF))
+                        Icon(Icons.Filled.Delete, "Deletar", tint = Color(0xFFB0B5BE))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -116,21 +133,29 @@ fun GoalDetailScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // NAVEGADOR DE CALENDÁRIO RETROATIVO
+            // NAVEGADOR DE CALENDÁRIO — pílula com botões circulares, alvo de
+            // toque maior e estado desabilitado mais legível que antes.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF3F4F6), shape = RoundedCornerShape(12.dp))
-                    .padding(vertical = 4.dp, horizontal = 8.dp),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFF9FAFB))
+                    .padding(vertical = 6.dp, horizontal = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { viewModel.navigatePrevious() }) {
+                IconButton(
+                    onClick = { viewModel.navigatePrevious() },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = "Período Anterior",
-                        tint = Color(0xFF4F46E5),
-                        modifier = Modifier.size(28.dp)
+                        tint = accent,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
@@ -143,40 +168,44 @@ fun GoalDetailScreen(
 
                 IconButton(
                     onClick = { viewModel.navigateNext() },
-                    enabled = uiState.timeOffset < 0 // Desabilita se já estiver no tempo presente
+                    enabled = uiState.timeOffset < 0, // Desabilita se já estiver no tempo presente
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (uiState.timeOffset < 0) Color.White else Color.Transparent)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Próximo Período",
-                        tint = if (uiState.timeOffset < 0) Color(0xFF4F46E5) else Color(0xFF9CA3AF),
-                        modifier = Modifier.size(28.dp)
+                        tint = if (uiState.timeOffset < 0) accent else Color(0xFFD1D5DB),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // CANVAS DA MONTANHA (Muda dinamicamente conforme os blocos do histórico)
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(220.dp)
-//                    .background(Color(0xFFF9FAFB), shape = RoundedCornerShape(12.dp))
-//                    .padding(12.dp)
-//            ) {
-//                MountainCanvas(goal = historicalGoal)
-//            }
-
-            MountainReveal(
-                goal = historicalGoal,
-                seed = historicalGoal.id,
-                accentColor = Color(historicalGoal.color),
-                modifier = Modifier.fillMaxWidth().height(220.dp)
-            )
+            // CANVAS DA MONTANHA — mesmo componente/animações de sempre, só
+            // ganhou uma moldura sutil pra parar de "flutuar" no fundo branco.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .border(1.dp, Color(0xFFF0F1F3), RoundedCornerShape(16.dp))
+            ) {
+                MountainReveal(
+                    goal = historicalGoal,
+                    seed = historicalGoal.id,
+                    accentColor = accent,
+                    modifier = Modifier.fillMaxWidth().height(220.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // CABEÇALHO DE STATUS E PORCENTAGEM
+            // CABEÇALHO DE STATUS — a porcentagem virou um anel em vez de
+            // número solto, reforçando a ideia de "quanto falta pra minerar".
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -185,10 +214,11 @@ fun GoalDetailScreen(
                 Column {
                     Text(
                         text = goalProgress.currentDayLabel, // Ex: "Dia 14"
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF4F46E5)
+                        color = accent
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = goalProgress.startedOnLabel, // Ex: "Iniciado em 16/05/2026"
                         fontSize = 13.sp,
@@ -197,45 +227,39 @@ fun GoalDetailScreen(
                     )
                 }
 
-                Text(
-                    text = goalProgress.percentageLabel, // Ex: "25%"
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
+                ProgressRing(
+                    progress = historicalGoal.progress.toFloat() / historicalGoal.totalTarget.coerceAtLeast(1),
+                    percentageLabel = goalProgress.percentageLabel,
+                    accentColor = accent
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SOLID PROGRESS BAR (Barra dinâmica baseada no dia visualizado)
+            // BARRA DE PROGRESSO — mesma fonte de dados, agora na cor da meta
             LinearProgressIndicator(
                 progress = { (historicalGoal.progress.toFloat() / historicalGoal.totalTarget).coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = Color(0xFF4F46E5),
-                trackColor = Color(0xFFF3F4F6)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = accent,
+                trackColor = accent.copy(alpha = 0.12f)
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // METRICAS DOS BLOCOS MINERADOS
+            // MÉTRICAS — chips em vez de texto corrido, mais fácil de escanear
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "${historicalGoal.progress} de ${historicalGoal.totalTarget} blocos minerados",
-                    fontSize = 13.sp,
-                    color = Color(0xFF6B7280),
-                    fontWeight = FontWeight.Medium
+                StatChip(
+                    icon = "⛏️",
+                    label = "${historicalGoal.progress}/${historicalGoal.totalTarget} blocos"
                 )
-
-                Text(
-                    text = "${goalProgress.currentFormattedTime} / ${goalProgress.totalFormattedTime}",
-                    fontSize = 13.sp,
-                    color = Color(0xFF4F46E5),
-                    fontWeight = FontWeight.Bold
+                StatChip(
+                    icon = "⏱️",
+                    label = "${goalProgress.currentFormattedTime} / ${goalProgress.totalFormattedTime}"
                 )
             }
 
@@ -259,7 +283,7 @@ fun GoalDetailScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF111827),
                     contentColor = Color.White,
-                    disabledContainerColor = Color(0xFFE5E7EB),
+                    disabledContainerColor = Color(0xFFEFF0F2),
                     disabledContentColor = Color(0xFF9CA3AF)
                 ),
                 shape = RoundedCornerShape(16.dp),
@@ -278,6 +302,21 @@ fun GoalDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFDECEC)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.WarningAmber,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444)
+                    )
+                }
+            },
             title = { Text("Deletar meta?", fontWeight = FontWeight.Bold) },
             text = { Text("Esta ação removerá a montanha inteira e todo o histórico de pedras.") },
             confirmButton = {
@@ -287,12 +326,76 @@ fun GoalDetailScreen(
                         showDeleteDialog = false
                         onBackClick()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(12.dp)
                 ) { Text("Deletar") }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
-            }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
+    }
+}
+
+/**
+ * Anel de progresso estático (sem animação própria) que substitui o número
+ * solto de porcentagem no cabeçalho. Usa exatamente os mesmos dados que já
+ * alimentam a LinearProgressIndicator logo abaixo — nenhuma lógica nova.
+ */
+@Composable
+private fun ProgressRing(
+    progress: Float,
+    percentageLabel: String,
+    accentColor: Color,
+    size: Dp = 56.dp,
+    strokeWidth: Dp = 5.dp
+) {
+    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = strokeWidth.toPx()
+            drawArc(
+                color = accentColor.copy(alpha = 0.15f),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+            drawArc(
+                color = accentColor,
+                startAngle = -90f,
+                sweepAngle = 360f * progress.coerceIn(0f, 1f),
+                useCenter = false,
+                style = Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+        }
+        Text(
+            text = percentageLabel,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF111827)
+        )
+    }
+}
+
+/** Pequeno chip de métrica — puramente visual, recebe texto já formatado. */
+@Composable
+private fun StatChip(icon: String, label: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFF3F4F6))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = icon, fontSize = 13.sp)
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color(0xFF374151),
+            fontWeight = FontWeight.Medium
         )
     }
 }
